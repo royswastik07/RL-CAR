@@ -17,7 +17,7 @@ A 2D self-driving car simulation built with Python and Pygame, using the **NEAT 
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/neat-self-driving-car.git
+   git clone https://github.com/royswastik07/RL-CAR.git
    cd neat-self-driving-car
    ```
 
