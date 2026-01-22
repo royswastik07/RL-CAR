@@ -35,54 +35,42 @@ def eval_genomes(genomes, config):
     max_steps = 1000 
     
     for step in range(max_steps):
-        # Handle events to prevent freeze
+        # Handle events and render
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 sys.exit()
-        
-        # Draw "Training..." occasionaly
-        if step % 50 == 0:
-            screen.fill((0, 0, 0))
-            font = pygame.font.SysFont('Arial', 30)
-            text = font.render(f'Training Generation... Step {step}', True, (255, 255, 255))
-            screen.blit(text, (200, 300))
-            pygame.display.flip()
 
+        screen.fill((0, 0, 0))
+        track.draw(screen)
+        
         # 1. Check if all cars are dead
         if len(cars) == 0:
             break
 
-        # 2. Update each car
+        # 2. Update and draw each car
         for i, car in enumerate(cars):
             if car.alive:
                 # Get inputs
                 inputs = car.get_data(track.walls) 
-                # Inputs are [dist_left, dist_center, dist_right] normalized
                 
                 # Get output from network
                 outputs = nets[i].activate(inputs)
-                steering = outputs[0] # -1 to 1 (tanh)
-                throttle = (outputs[1] + 1) / 2 # Normalize tanh (-1,1) to (0,1) or just use sigmoid in config
-                # Config says tanh for default activation, so outputs are -1 to 1.
-                # If we want throttle 0-1, we clamp or shift. 
-                # Let's map tanh (-1, 1) -> (0, 1) via (x+1)/2
+                steering = outputs[0]
+                throttle = (outputs[1] + 1) / 2
                 
                 car.update(steering, throttle, track.walls)
+                car.draw(screen)
                 
                 # Fitness function
-                # Reward for moving forward (distance)
-                # Penalty for dying handled in car.update (or here)
-                ge[i].fitness += car.speed # Reward speed/distance
+                ge[i].fitness += car.speed
                 
-                # Kill if hitting simple fitness cap or stuck?
-                # For now just collision check
                 if not car.alive:
                     ge[i].fitness -= 50
-                    # We don't remove from list immediately to keep indices aligned? 
-                    # actually strictly we iterate and if not alive we skip or remove.
-                    # Easier to not remove, just ignore.
-                
-                # Optional: break early if stuck?
+        
+        pygame.display.flip()
+        
+        # Optional: slow down training to see it?
+        clock.tick(60) # Uncomment to cap FPS
 
 def run_visual_simulation(genome, config):
     """
