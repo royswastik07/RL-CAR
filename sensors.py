@@ -1,4 +1,5 @@
 import math
+import pygame
 
 def get_line_intersection(p1, p2, p3, p4):
     """
@@ -27,16 +28,17 @@ def get_line_intersection(p1, p2, p3, p4):
 class Sensors:
     def __init__(self, ray_length=150):
         self.ray_length = ray_length
-        # Angles relative to car heading: Left, Center, Right
-        self.angles = [-45, 0, 45]
+        # Angles relative to car heading: All directions (360 degrees)
+        # Using 8 sensors: 0, 45, 90, 135, 180, 225, 270, 315
+        self.angles = [0, 45, 90, 135, 180, 225, 270, 315]
 
     def get_readings(self, car_pos, car_angle, walls):
         """
         Cast rays and return normalized distances [0, 1].
-        1.0 means no wall in range.
-        0.0 means touching wall.
+        Also stores ray data for drawing.
         """
         readings = []
+        self.rays = [] # Store (start, end, color) for drawing
         center_x, center_y = car_pos
         
         for angle in self.angles:
@@ -47,6 +49,7 @@ class Sensors:
             
             # Check intersection with all walls
             closest_dist = self.ray_length
+            closest_pt = (end_x, end_y)
             
             for wall in walls:
                 # Wall is a rect, check 4 sides
@@ -63,17 +66,24 @@ class Sensors:
                         dist = math.hypot(intersect[0] - center_x, intersect[1] - center_y)
                         if dist < closest_dist:
                             closest_dist = dist
+                            closest_pt = intersect
                             
-            # Normalize: 0 = collision (dist=0), 1 = max range (dist=ray_length)
-            # Actually usually networks like larger values for closer objects or vice versa.
-            # Prompt says: "Normalized distance to nearest wall in range [0, 1]"
-            # Usually strict NEAT implies input is what it sees. 
-            # If 1 is far and 0 is close? Or 1 is close and 0 is far?
-            # Prompt: "distance to nearest wall" -> so 0 if close, 1 if far (clamped at ray_length)
+            # Store ray for drawing
+            # Green if clear, Red if close ( < 20% range) purely visual preference
+            color = (0, 255, 0)
+            if closest_dist < 40:
+                color = (255, 0, 0)
+            
+            self.rays.append((car_pos, closest_pt, color))
+            
+            # Normalize for NEAT
             readings.append(closest_dist / self.ray_length)
             
         return readings
 
-    def draw(self, screen, car_pos, car_angle):
-        # Optional debug draw
-        pass
+    def draw(self, screen):
+        """Draw the rays."""
+        if hasattr(self, 'rays'):
+            for start, end, color in self.rays:
+                pygame.draw.line(screen, color, start, end, 1)
+                pygame.draw.circle(screen, color, (int(end[0]), int(end[1])), 3)

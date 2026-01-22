@@ -1,6 +1,6 @@
 import math
 import pygame
-from sensors import Sensors
+from sensors import Sensors, get_line_intersection
 
 class Car:
     def __init__(self, start_pos, start_angle):
@@ -45,17 +45,60 @@ class Car:
         self.distance += self.speed # Simple fitness accumulation
         
         # 3. Collision check
-        # Create a rotated rect for collision (simplified to bounding box for now, or just center point check)
-        # Detailed rect collision is better.
-        car_rect = pygame.Rect(self.x - self.width/2, self.y - self.height/2, self.width, self.height)
-        # Note: Pygame rects don't rotate. For strict collision we need masks or polygon checks.
-        # But prompt said "Simple wall collision (bounding box)".
-        # So we use axis-aligned bounding box (AABB) centered at x,y.
+        # Calculate the 4 corners of the rotated, centered car
+        rad = math.radians(self.angle)
+        cos_a = math.cos(rad)
+        sin_a = math.sin(rad)
+        
+        hw = self.width / 2
+        hh = self.height / 2
+        
+        # Local corners in order: FL, FR, BR, BL
+        local_corners = [
+            (hw, -hh),  # FL
+            (hw, hh),   # FR
+            (-hw, hh),  # BR
+            (-hw, -hh)  # BL
+        ]
+        
+        # Transform to world
+        world_corners = []
+        for lx, ly in local_corners:
+            wx = self.x + (lx * cos_a - ly * sin_a)
+            wy = self.y + (lx * sin_a + ly * cos_a)
+            world_corners.append((wx, wy))
+            
+        self.corners = world_corners 
+        
+        # Check collision with walls (Line Intersection)
+        car_lines = [
+            (world_corners[0], world_corners[1]), # Front
+            (world_corners[1], world_corners[2]), # Right
+            (world_corners[2], world_corners[3]), # Back
+            (world_corners[3], world_corners[0])  # Left
+        ]
         
         for wall in walls:
-            if car_rect.colliderect(wall):
-                self.alive = False
-                self.distance -= 50 # Penalty
+            # Optimization: fast AABB check first
+            if not wall.colliderect(pygame.Rect(self.x-20, self.y-20, 40, 40)): 
+                continue
+                
+            wall_lines = [
+                ((wall.left, wall.top), (wall.right, wall.top)),
+                ((wall.right, wall.top), (wall.right, wall.bottom)),
+                ((wall.right, wall.bottom), (wall.left, wall.bottom)),
+                ((wall.left, wall.bottom), (wall.left, wall.top))
+            ]
+            
+            for p1, p2 in car_lines:
+                for p3, p4 in wall_lines:
+                    if get_line_intersection(p1, p2, p3, p4):
+                        self.alive = False
+                        self.distance -= 50
+                        break
+                if not self.alive:
+                    break
+            if not self.alive:
                 break
                 
     def get_data(self, walls):
